@@ -138,4 +138,77 @@ jwt.verify(token, Conf.secret, async function(err, decoded) {
     })
 })
 
+//DELETE user by ID
+userRouter.delete('/datauser/:id', async (req,res) => {
+    //header apabila akan melakukan akses
+var token = req.headers['x-access-token'];
+if (!token) return res.status(401).send({ auth: false, message: 'No token provided.' });
+
+//verifikasi jwt
+jwt.verify(token, Conf.secret, async function(err, decoded) {
+    if (err) return res.status(500).send({ auth: false, message: 'Failed to authenticate token.' });
+    const jabatan = decoded.user.jabatan;
+    console.log(jabatan)
+        if(jabatan == 1){
+            const user = await User.findById(req.params.id);
+
+            if (user) {
+                await user.remove();
+                res.json({
+                    message: 'Data removed'
+                })
+            } else {
+                res.status(404).json({
+                    message: 'User not found' 
+                })       
+            }
+        } else {
+            res.status(500).send(`${decoded.user.username} Tidak Memiliki Wewenang`);
+        }
+    })
+
+
+})
+
+//login
+userRouter.post('/login', async (req, res) => {
+    try{
+        const{
+            username,
+            password
+        } = req.body;
+        
+        const currentUser = await new Promise((resolve, reject) =>{
+            User.find({"username": username}, function(err, user){
+                if(err)
+                    reject(err)
+                resolve(user)
+            })
+        })
+        
+        //cek apakah ada user?
+        if(currentUser[0]){
+            //check password
+            bcrypt.compare(password, currentUser[0].password).then(function(result) {
+                if(result){
+                    const user = currentUser[0];  
+                    console.log(user);
+                    //urus token disini
+                    var token = jwt.sign({ user }, Conf.secret, {
+                        expiresIn: 86400 // expires in 24 hours
+                    });
+                    res.status(200).send({ auth: true, token: token });
+                    res.status(201).json({"status":"logged in!"});
+                } else {
+                    res.status(201).json({"status":"wrong password."});
+                }
+            });
+        } else {
+            res.status(201).json({"status":"username not found"});
+        }
+    } catch(error){
+        res.status(500).json({ error: error})
+    }
+})
+
 export default userRouter;
